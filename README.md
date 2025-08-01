@@ -128,105 +128,105 @@ class NeuroEmployee:
         else:
             logger.warning(f"Directory '{docs_dir}' not found, loading sample documents.")
             sample_texts = [
-                # Примерные тексты для тестирования RAG-конвейера
-                "ТЗ по ГОСТ 34.602-2020 должно включать: общие сведения, назначение системы, требования к функциям, этапы разработки.",
-                "Для смены вида деятельности в ЕГРИП нужно подать заявление через портал и приложить новые ОКВЭД.",
-                "Информация о космических полётах не входит в компетенцию системы, обратитесь в Роскосмос.",
-                "Для смены номера телефона в mos.ru используйте личный кабинет с подтверждением через СМС."
+# Примерные тексты для тестирования RAG-конвейера
+"ТЗ по ГОСТ 34.602-2020 должно включать: общие сведения, назначение системы, требования к функциям, этапы разработки.",
+"Для смены вида деятельности в ЕГРИП нужно подать заявление через портал и приложить новые ОКВЭД.",
+"Информация о космических полётах не входит в компетенцию системы, обратитесь в Роскосмос.",
+"Для смены номера телефона в mos.ru используйте личный кабинет с подтверждением через СМС."
             ]
             self.docs = [Document(text=t) for t in sample_texts]
 
-        # 2) Загрузка модели эмбеддингов
-        if embed_alias not in AVAILABLE_EMBED:
-            raise ValueError(f"Embed model '{embed_alias}' not supported. Available: {list(AVAILABLE_EMBED.keys())}")
-        self.embed_model = SentenceTransformer(AVAILABLE_EMBED[embed_alias])
+# 2) Загрузка модели эмбеддингов
+if embed_alias not in AVAILABLE_EMBED:
+    raise ValueError(f"Embed model '{embed_alias}' not supported. Available: {list(AVAILABLE_EMBED.keys())}")
+self.embed_model = SentenceTransformer(AVAILABLE_EMBED[embed_alias])
 
-        # 3) FAISS-индекс
-        # Преобразуем текст документов в векторы и индексируем
-        embeddings = [self.embed_model.encode(doc.text) for doc in self.docs]
-        dim = embeddings[0].shape[0]
-        self.index = faiss.IndexFlatL2(dim)
-        self.index.add(np.array(embeddings))
+# 3) FAISS-индекс
+# Преобразуем текст документов в векторы и индексируем
+embeddings = [self.embed_model.encode(doc.text) for doc in self.docs]
+dim = embeddings[0].shape[0]
+self.index = faiss.IndexFlatL2(dim)
+self.index.add(np.array(embeddings))
 
-        # 4) Загрузка LLM (токенизатор + модель)
-        if llm_alias not in AVAILABLE_LLM:
-            raise ValueError(f"LLM '{llm_alias}' not supported. Available: {list(AVAILABLE_LLM.keys())}")
-        self.tokenizer = AutoTokenizer.from_pretrained(AVAILABLE_LLM[llm_alias])
-        self.model = AutoModelForCausalLM.from_pretrained(AVAILABLE_LLM[llm_alias])
-        self.model.eval() # Включаем режим оценки для экономии VRAM
+# 4) Загрузка LLM (токенизатор + модель)
+if llm_alias not in AVAILABLE_LLM:
+    raise ValueError(f"LLM '{llm_alias}' not supported. Available: {list(AVAILABLE_LLM.keys())}")
+self.tokenizer = AutoTokenizer.from_pretrained(AVAILABLE_LLM[llm_alias])
+self.model = AutoModelForCausalLM.from_pretrained(AVAILABLE_LLM[llm_alias])
+self.model.eval() # Включаем режим оценки для экономии VRAM
 
-        # 5) Настройка ACL (список ролей с доступом)
-        self.allowed_roles = allowed_roles
+# 5) Настройка ACL (список ролей с доступом)
+self.allowed_roles = allowed_roles
 
-        # 6) Фильтрация чувствительных данных (безопасность)
-        # Блокируем запросы с паролями, паспортами, СНИЛС и т.п.
-        self.sensitive_pattern = re.compile(r"(парол[ья]|кредитная карта|персональн[ыых] данные|паспорт|СНИЛС|ИНН)", re.IGNORECASE)
+# 6) Фильтрация чувствительных данных (безопасность)
+# Блокируем запросы с паролями, паспортами, СНИЛС и т.п.
+self.sensitive_pattern = re.compile(r"(парол[ья]|кредитная карта|персональн[ыых] данные|паспорт|СНИЛС|ИНН)", re.IGNORECASE)
 
-        # 7) Настройка метрик Prometheus
-        self.registry = CollectorRegistry()
-        # Удаляем старые коллекторы (на случай перезапуска)
-        for collector in list(self.registry._collector_to_names):
-            self.registry.unregister(collector)
-        self.request_counter = PromCounter('neuro_employee_requests_total', 'Всего запросов', registry=self.registry)
-        self.latency_hist = Histogram('neuro_employee_latency_seconds', 'Время ответа', registry=self.registry)
-        # Запускаем HTTP-сервер для сбора метрик на порту 8001
-        start_http_server(8001, registry=self.registry)
+# 7) Настройка метрик Prometheus
+self.registry = CollectorRegistry()
+# Удаляем старые коллекторы (на случай перезапуска)
+for collector in list(self.registry._collector_to_names):
+    self.registry.unregister(collector)
+self.request_counter = PromCounter('neuro_employee_requests_total', 'Всего запросов', registry=self.registry)
+self.latency_hist = Histogram('neuro_employee_latency_seconds', 'Время ответа', registry=self.registry)
+# Запускаем HTTP-сервер для сбора метрик на порту 8001
+start_http_server(8001, registry=self.registry)
 
-    def check_access(self, user_id):
-        # Проверка прав пользователя
-        return "analyst" in self.allowed_roles
+def check_access(self, user_id):
+    # Проверка прав пользователя
+    return "analyst" in self.allowed_roles
 
-    def validate_answer(self, context, answer):
-        # Простой детектор галлюцинаций: сравниваем векторы контекста и ответа
-        ctx_emb = self.embed_model.encode(context)
-        ans_emb = self.embed_model.encode(answer)
-        sim = cosine_similarity([ctx_emb], [ans_emb])[0][0]
-        # Если слишком низкая близость или ответ слишком короткий — считаем галлюцинацией
-        return sim > 0.50
+def validate_answer(self, context, answer):
+    # Простой детектор галлюцинаций: сравниваем векторы контекста и ответа
+    ctx_emb = self.embed_model.encode(context)
+    ans_emb = self.embed_model.encode(answer)
+    sim = cosine_similarity([ctx_emb], [ans_emb])[0][0]
+    # Если слишком низкая близость или ответ слишком короткий — считаем галлюцинацией
+    return sim > 0.50
 
-    def answer(self, user_id, query):
-        self.request_counter.inc()
-        start = time.time()
+def answer(self, user_id, query):
+    self.request_counter.inc()
+    start = time.time()
 
-        # Проверяем ACL
-        if not self.check_access(user_id):
-            return "У вас нет прав на получение информации."
-        # Фильтруем конфиденциальные запросы
-        if self.sensitive_pattern.search(query):
-            return "Запрос содержит конфиденциальные данные."
+# Проверяем ACL
+if not self.check_access(user_id):
+    return "У вас нет прав на получение информации."
+# Фильтруем конфиденциальные запросы
+if self.sensitive_pattern.search(query):
+    return "Запрос содержит конфиденциальные данные."
 
-        # Поиск наиболее релевантного документа
-        try:
-            q_emb = self.embed_model.encode(query)
-            dists, idx = self.index.search(np.array([q_emb]), k=3)
-            context = self.docs[idx[0][0]].text
-        except Exception as e:
-            logger.error(f"Ошибка поиска: {e}")
-            return "Не могу найти информацию по вашему запросу."
+# Поиск наиболее релевантного документа
+try:
+    q_emb = self.embed_model.encode(query)
+    dists, idx = self.index.search(np.array([q_emb]), k=3)
+    context = self.docs[idx[0][0]].text
+except Exception as e:
+    logger.error(f"Ошибка поиска: {e}")
+    return "Не могу найти информацию по вашему запросу."
 
-        # Формируем промпт для LLM
-        prompt = f"Контекст: {context}\nВопрос: {query}"
-        input_ids = self.tokenizer(prompt, return_tensors="pt").input_ids
-        # Генерация сэмплированного ответа
-        out = self.model.generate(
-            input_ids,
-            max_new_tokens=200,
-            do_sample=True,
-            num_return_sequences=1,
-            no_repeat_ngram_size=2,
-            top_k=70,
-            top_p=0.95,
-            temperature=0.7
-        )
-        answer = self.tokenizer.decode(out[0], skip_special_tokens=True)
+# Формируем промпт для LLM
+prompt = f"Контекст: {context}\nВопрос: {query}"
+input_ids = self.tokenizer(prompt, return_tensors="pt").input_ids
+# Генерация сэмплированного ответа
+out = self.model.generate(
+    input_ids,
+    max_new_tokens=200,
+    do_sample=True,
+    num_return_sequences=1,
+    no_repeat_ngram_size=2,
+    top_k=70,
+    top_p=0.95,
+    temperature=0.7
+)
+answer = self.tokenizer.decode(out[0], skip_special_tokens=True)
 
-        # Проверяем ответ на галлюцинации и длину
-        if not self.validate_answer(context, answer) or len(answer.split()) < 10:
-            return "Не могу дать точный ответ. Обратитесь к специалисту."
+# Проверяем ответ на галлюцинации и длину
+if not self.validate_answer(context, answer) or len(answer.split()) < 10:
+    return "Не могу дать точный ответ. Обратитесь к специалисту."
 
-        # Собираем время отклика
-        self.latency_hist.observe(time.time() - start)
-        return answer
+# Собираем время отклика
+self.latency_hist.observe(time.time() - start)
+return answer
 
 
 # 📊 Точка входа для запуска скрипта напрямую
@@ -235,30 +235,30 @@ if __name__ == "__main__":
     if any(arg.startswith('-f') for arg in sys.argv[1:]):
         sys.argv = sys.argv[:1]
 
-    # Разбор параметров командной строки
-    parser = argparse.ArgumentParser(description="NeuroEmployee with selectable models")
-    parser.add_argument("--docs_dir", type=str, default="docs/", help="Путь к директории с документами")
-    parser.add_argument("--llm", type=str, choices=list(AVAILABLE_LLM.keys()), default="tiny", help="Выбор LLM из доступных")
-    parser.add_argument("--embed", type=str, choices=list(AVAILABLE_EMBED.keys()), default="minilm", help="Выбор модели эмбеддингов")
-    parser.add_argument("--roles", nargs='+', default=["analyst"], help="Список ролей с доступом")
-    args, _ = parser.parse_known_args()
+# Разбор параметров командной строки
+parser = argparse.ArgumentParser(description="NeuroEmployee with selectable models")
+parser.add_argument("--docs_dir", type=str, default="docs/", help="Путь к директории с документами")
+parser.add_argument("--llm", type=str, choices=list(AVAILABLE_LLM.keys()), default="tiny", help="Выбор LLM из доступных")
+parser.add_argument("--embed", type=str, choices=list(AVAILABLE_EMBED.keys()), default="minilm", help="Выбор модели эмбеддингов")
+parser.add_argument("--roles", nargs='+', default=["analyst"], help="Список ролей с доступом")
+args, _ = parser.parse_known_args()
 
-    # Инициализация и тестирование бота
-    neuro = NeuroEmployee(
-        docs_dir=args.docs_dir,
-        llm_alias=args.llm,
-        embed_alias=args.embed,
-        allowed_roles=args.roles
-    )
+# Инициализация и тестирование бота
+neuro = NeuroEmployee(
+    docs_dir=args.docs_dir,
+    llm_alias=args.llm,
+    embed_alias=args.embed,
+    allowed_roles=args.roles
+)
 
-    # Демозапросы для проверки
-    tests = [
-        ("user1", "Как оформить ТЗ по ГОСТ?"),
-        ("user2", "Мой пароль 123"),
-        ("user3", "Расскажи о смене ОКВЭД"),
-        ("user4", "Что такое неизвестный термин?")
-    ]
+# Демозапросы для проверки
+tests = [
+    ("user1", "Как оформить ТЗ по ГОСТ?"),
+    ("user2", "Мой пароль 123"),
+    ("user3", "Расскажи о смене ОКВЭД"),
+    ("user4", "Что такое неизвестный термин?")
+]
 
-    for uid, q in tests:
-        print(f"--- {q} ---")
-        print(neuro.answer(uid, q))
+for uid, q in tests:
+    print(f"--- {q} ---")
+    print(neuro.answer(uid, q))
