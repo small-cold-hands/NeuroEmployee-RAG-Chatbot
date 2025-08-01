@@ -1,44 +1,3 @@
-# NeuroEmployee-RAG-Chatbot
-This repository contains the NeuroEmployee service, an example of a RAG (Retrieval-Augmented Generation) application designed to answer questions based on a loaded document database.
-
-What the Project Does:
-Loads documents from the docs/ folder (or uses demo texts).
-Builds a FAISS vector index using SentenceTransformer embeddings.
-Finds relevant context for user queries and generates responses using a selected LLM.
-Implements filtering of queries to detect confidential data.
-Checks generated responses for hallucinations (by comparing embeddings) and length.
-Collects query metrics and latency data through Prometheus.
-
-Main Purpose:
-Demonstrates a production approach to a RAG bot with security and monitoring.
-Allows for the selection of different LLM models and embeddings through aliases.
-
-Security:
-Blocks queries containing personal or financial data (such as passwords, passport details, or SNILS) to prevent leaks.
-Hallucinations: Filters out responses whose vector similarity to the context is below 0.5 or whose length is fewer than 10 words.
-
-Safety:
-Ensures the bot does not become an unofficial "storage" of personal information.
-The hallucination detector makes the RAG system more reliable: it either responds with factual information from the database or honestly admits it doesn't know.
-
-В этом репозитории содержится сервис NeuroEmployee — пример RAG-приложения (Retrieval-Augmented Generation), предназначенного для ответов на вопросы на основе загруженной базы документов.
-Что выполняет проект:
-•	Загружает документы из папки docs/ (или использует демонстрационные тексты).
-•	Строит векторный индекс FAISS с использованием эмбеддингов SentenceTransformer.
-•	Находит релевантный контекст для запросов пользователей и генерирует ответы с помощью выбранной модели LLM.
-•	Реализует фильтрацию запросов для обнаружения конфиденциальных данных.
-•	Проверяет сгенерированные ответы на наличие галлюцинаций (путём сравнения эмбеддингов) и длину.
-•	Собирает метрики запросов и данные о задержках через Prometheus.
-Основное назначение:
-•	Демонстрация производственного подхода к RAG-боту с обеспечением безопасности и мониторинга.
-•	Возможность выбора различных моделей LLM и эмбеддингов через алиасы.
-Безопасность:
-•	Блокирует запросы, содержащие личные или финансовые данные (например, пароли, данные паспорта или СНИЛС), чтобы предотвратить утечки.
-•	Галлюцинации: отсеивает ответы, векторное сходство которых с контекстом ниже 0.5 или длина которых меньше 10 слов.
-Надёжность:
-•	Обеспечивает, чтобы бот не стал неофициальным "хранилищем" личной информации.
-•	Детектор галлюцинаций делает RAG-систему более надёжной: она либо отвечает фактической информацией из базы, либо честно признаёт, что не знает ответа.
-
 # 🚀 Установка зависимостей
 !pip install \
     torch torchvision \
@@ -50,6 +9,7 @@ The hallucination detector makes the RAG system more reliable: it either respond
     mlflow==2.21.0 \
     prometheus-client \
     tensorflow-cpu==2.19.0
+
 # 📦 Импорты
 import logging
 import os
@@ -92,6 +52,7 @@ AVAILABLE_LLM = {
     "gpt2": "gpt2",
     "opt-125m": "facebook/opt-125m"
 }
+
 AVAILABLE_EMBED = {
     "minilm": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
     "all-mpnet": "sentence-transformers/all-mpnet-base-v2"
@@ -167,14 +128,12 @@ class NeuroEmployee:
     def answer(self, user_id, query):
         self.request_counter.inc()
         start = time.time()
-
         # Проверяем ACL
         if not self.check_access(user_id):
             return "У вас нет прав на получение информации."
         # Фильтруем конфиденциальные запросы
         if self.sensitive_pattern.search(query):
             return "Запрос содержит конфиденциальные данные."
-
         # Поиск наиболее релевантного документа
         try:
             q_emb = self.embed_model.encode(query)
@@ -183,7 +142,6 @@ class NeuroEmployee:
         except Exception as e:
             logger.error(f"Ошибка поиска: {e}")
             return "Не могу найти информацию по вашему запросу."
-
         # Формируем промпт для LLM
         prompt = f"Контекст: {context}\nВопрос: {query}"
         input_ids = self.tokenizer(prompt, return_tensors="pt").input_ids
@@ -199,11 +157,9 @@ class NeuroEmployee:
             temperature=0.7
         )
         answer = self.tokenizer.decode(out[0], skip_special_tokens=True)
-
         # Проверяем ответ на галлюцинации и длину
         if not self.validate_answer(context, answer) or len(answer.split()) < 10:
             return "Не могу дать точный ответ. Обратитесь к специалисту."
-
         # Собираем время отклика
         self.latency_hist.observe(time.time() - start)
         return answer
@@ -213,7 +169,6 @@ if __name__ == "__main__":
     # Удаляем служебные аргументы Colab/IPython (-f <kernel>)
     if any(arg.startswith('-f') for arg in sys.argv[1:]):
         sys.argv = sys.argv[:1]
-
     # Разбор параметров командной строки
     parser = argparse.ArgumentParser(description="NeuroEmployee with selectable models")
     parser.add_argument("--docs_dir", type=str, default="docs/", help="Путь к директории с документами")
@@ -221,7 +176,6 @@ if __name__ == "__main__":
     parser.add_argument("--embed", type=str, choices=list(AVAILABLE_EMBED.keys()), default="minilm", help="Выбор модели эмбеддингов")
     parser.add_argument("--roles", nargs='+', default=["analyst"], help="Список ролей с доступом")
     args, _ = parser.parse_known_args()
-
     # Инициализация и тестирование бота
     neuro = NeuroEmployee(
         docs_dir=args.docs_dir,
@@ -229,7 +183,6 @@ if __name__ == "__main__":
         embed_alias=args.embed,
         allowed_roles=args.roles
     )
-
     # Демозапросы для проверки
     tests = [
         ("user1", "Как оформить ТЗ по ГОСТ?"),
@@ -237,9 +190,6 @@ if __name__ == "__main__":
         ("user3", "Расскажи о смене ОКВЭД"),
         ("user4", "Что такое неизвестный термин?")
     ]
-
     for uid, q in tests:
         print(f"--- {q} ---")
         print(neuro.answer(uid, q))
-
-
