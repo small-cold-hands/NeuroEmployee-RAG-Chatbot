@@ -20,3 +20,5 @@ Hallucinations: Filters out responses whose vector similarity to the context is 
 Safety:
 Ensures the bot does not become an unofficial "storage" of personal information.
 The hallucination detector makes the RAG system more reliable: it either responds with factual information from the database or honestly admits it doesn't know.
+
+https://colab.research.google.com/drive/12MP_0NhWpUMnjSbDEg1MmZPk5gkFmuOV?usp=sharing#scrollTo=Swow2E0LNdDK
